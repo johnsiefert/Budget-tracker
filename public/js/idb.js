@@ -27,6 +27,52 @@ request.onerror = function(event) {
     budgetObjectStore.add(record);
   }
 
+  function uploadBudget() {
+    // open a transaction on your pending db
+    const transaction = db.transaction(['new_budget'], 'readwrite');
+
+    // access your pending object store
+    const budgetObjectStore = transaction.objectStore('new_budget');
+
+    // get all records from store and set to a variable
+    // .getAll() is asynchronous and it has to be attached to an event handler
+    // ..in order to retrieve the data
+    const getAll = budgetObjectStore.getAll();
+
+    // upon a successful .getAll() execution, run this function
+    getAll.onsuccess = function() {
+      // if there was data in indexedDb's store, let's send it to the api server
+      // once getAll is completed, getAll will have a .result property that is an array
+      // .. of all the data we retrieved from the new_budget object store.
+      if (getAll.result.length > 0) {
+        fetch('/api/transaction', {
+          method: 'POST',
+          body: JSON.stringify(getAll.result),
+          headers: {
+            Accept: 'application/json, text/plain, */*',
+            'Content-Type': 'application/json'
+          }
+        })
+          .then(response => response.json())
+          .then(serverResponse => {
+            if (serverResponse.message) {
+              throw new Error(serverResponse);
+            }
+            // open one more transaction
+            const transaction = db.transaction(['new_budget'], 'readwrite');
+            // access the new_budget object
+            const budgetObjectStore = transaction.objectStore('new_budget');
+            // clear all items in your store
+            budgetObjectStore.clear();
+          })
+          .catch(err => {
+            // set reference to redirect back here
+            console.log(err);
+          });
+      }
+    };
+  }
+
 
 
 window.addEventListener('online', uploadBudget);
